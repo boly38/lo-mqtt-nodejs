@@ -1,0 +1,15 @@
+# IntelliJ
+.idea
+*.iml
+
+# Npm
+node_modules/
+
+# secret
+.env
+
+# custom
+*.dontpush.*
+
+# app temp files
+lastFirmware.raw
