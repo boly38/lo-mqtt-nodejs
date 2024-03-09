@@ -60,7 +60,13 @@ export default class LoDeviceController {
     }
 
     buildDeviceConfigFromEnv(config) {
-        this.validateConfig(config);
+        assumeConfigurationKeySet(config, "mqttServerUrl", "LO_MQTT_ENDPOINT")
+        assumeConfigurationKeySet(config, "deviceApiKey", "LO_MQTT_DEVICE_API_KEY")
+        assumeConfigurationKeySet(config, "deviceId", "LO_MQTT_DEVICE_ID")
+        assumeConfigurationKeySet(config, "publishDeviceConfig", "LO_MQTT_STARTUP_PUBLISH_CONFIG", "true")
+        assumeConfigurationKeySet(config, "publishDeviceData", "LO_MQTT_STARTUP_PUBLISH_DATA", "true")
+        assumeConfigurationKeySet(config, "publishDeviceResource", "LO_MQTT_STARTUP_PUBLISH_RESOURCE", "true")
+        this.validMqttUrl(config.mqttServerUrl)
         return config;
     }
 
@@ -68,7 +74,6 @@ export default class LoDeviceController {
         const device = new LoDevice(config);
         this.devices.push(device);
         return device.connect({
-            "publishDeviceConfig": true,
             "onEndCallback": () => {
                 this.stopAskInput();// today we manage only one device, so leave here right now
             }
@@ -98,14 +103,6 @@ export default class LoDeviceController {
         this.devices[0].forceReconnect().then(r => {
         })
     }
-
-    validateConfig(config) {
-        assumeConfigurationKeySet(config, "mqttServerUrl", "LO_MQTT_ENDPOINT")
-        assumeConfigurationKeySet(config, "deviceApiKey", "LO_MQTT_DEVICE_API_KEY")
-        assumeConfigurationKeySet(config, "deviceId", "LO_MQTT_DEVICE_ID")
-        this.validMqttUrl(config.mqttServerUrl)
-    }
-
     validMqttUrl(url) {
         return /^(mqtts?):\/\/(.*):[0-9]{2,6}$/.test(url) || /^(wss?):\/\/(.*):[0-9]{2,6}(\/mqtt)?$/.test(url);
     }

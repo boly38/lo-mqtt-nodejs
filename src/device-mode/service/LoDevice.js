@@ -1,7 +1,10 @@
 import log4js from "log4js";
 import mqtt from "mqtt";
-import {loadJSON} from "./util.js";
-
+import LoConfigFeature from "./feature/LoConfigFeature.js";
+import LoCommandFeature from "./feature/LoCommandFeature.js";
+import LoResourceFeature from "./feature/LoResourceFeature.js";
+import LoDataFeature from "./feature/LoDataFeature.js";
+import {isSet} from "./util.js";
 
 // reconnectPeriod<=0 means no reconnection
 // reconnectPeriod=1000 means reconnection after 1 second
@@ -18,20 +21,24 @@ const MQTT_DEVICE_MODE_DEFAULT_CONNECT_OPTIONS = {
     reconnectPeriod: MQTT_RECONNECT_PERIOD_MS
 };
 
-const INITIAL_CONFIG = loadJSON("../data/initialConfig.json");
-const INITIAL_RESOURCE = loadJSON("../data/initialResource.json");
-
-const topicConfigUpdate = 'dev/cfg/upd';
-const topicConfig = 'dev/cfg';
-const topicData = 'dev/data';
-const topicResource = 'dev/rsc';
-const topicCommand = 'dev/cmd';
-const topicCommandRsp = 'dev/cmd/res';
-const topicResourceUpd = 'dev/rsc/upd';
-const topicResourceUpdResp = 'dev/rsc/upd/res';
-const topicResourceUpdErr = 'dev/rsc/upd/err';
 export default class LoDevice {
-    constructor({mqttServerUrl, deviceApiKey, deviceId}) {
+
+    /**
+     *
+     * @param mqttServerUrl
+     * @param deviceApiKey
+     * @param deviceId
+     * @param config
+     * @param resource
+     * @param publishDeviceConfig    when true publish config
+     * @param publishDeviceData      when true publish data
+     * @param publishDeviceResource  when true publish resource
+     */
+    constructor({
+                    mqttServerUrl, deviceApiKey, deviceId,
+                    config, resource,
+                    publishDeviceConfig, publishDeviceData, publishDeviceResource
+                }) {
         this.logger = log4js.getLogger();
         this.logger.level = 'DEBUG';
 
@@ -42,94 +49,127 @@ export default class LoDevice {
         this.client = null;
         this.connectionCount = 0;
         this.reconnectRetry = 0;
-        this.deviceResources = INITIAL_RESOURCE;
-        this.deviceConfig = INITIAL_CONFIG;
+        this.features = [
+            new LoConfigFeature({config, publishDeviceConfig}),
+            new LoCommandFeature({}),
+            new LoResourceFeature({resource, publishDeviceResource}),
+            new LoDataFeature({publishDeviceData, deviceId, "getDeviceStats": () => this.getDeviceStats()})
+        ];
     }
 
-    connect({publishDeviceConfig, onEndCallback}) {
+    getDeviceStats() {
+        const {connectionCount, reconnectRetry} = this;
+        const stats = {connectionCount, reconnectRetry};
+        this.features.forEach(feature => {
+            if (isSet(feature.getStats) && isSet(feature.getName)) {
+                const name = feature.getName();
+                const featureStats = feature.getStats();
+                stats[name] = featureStats;
+            }
+        });
+        return stats;
+    }
+
+    /**
+     * Device MQTT connection
+     * @param onEndCallback          callback on device MQTT connection end (with error as arg if any)
+     * @returns {Promise<unknown>}
+     */
+    connect({onEndCallback}) {
         const loDevice = this;
+        let {
+            logger, client, connectionCount, reconnectRetry,
+            deviceId: clientId, deviceApiKey: password, mqttServerUrl: serverUrl,
+        } = loDevice;
         loDevice.onEndCallback = onEndCallback;
         return new Promise((resolve, reject) => {
-            let {
-                logger,
-                connectionCount,
-                reconnectRetry,
-                deviceId: clientId,
-                deviceApiKey: password,
-                mqttServerUrl: serverUrl
-            } = loDevice;
-            logger.info(`${serverUrl}: ${clientId} trying to connect...`);
-            if (this.client != null) {
-                loDevice.close()
+            try {
+
+                logger.info(`${serverUrl}: ${clientId} trying to connect...`);
+                if (client != null) {
+                    loDevice.close()
+                }
+                client = mqtt.connect(serverUrl, {
+                    ...MQTT_DEVICE_MODE_DEFAULT_CONNECT_OPTIONS,
+                    clientId, password
+                });
+                loDevice.client = client
+                // After connection actions
+                client.on('connect', function () {
+                    logger.info(`${serverUrl}: ${clientId} connected.`);
+                    connectionCount++;
+                    loDevice.features.forEach(feature => feature.onConnect({client}));
+                    resolve();
+                });
+
+                // MQTT on Close
+                client.on('close', function () {
+                    logger.info('connection closed');
+                    if (reconnectRetry >= MAX_CONNECT_RETRIES) {
+                        const noMoreRetryMessage = `aborted after ${MAX_CONNECT_RETRIES} retries`;
+                        logger.warn(noMoreRetryMessage);
+                        loDevice.close();
+                        reject(noMoreRetryMessage);
+                        if (loDevice.onEndCallback) {
+                            loDevice.onEndCallback(noMoreRetryMessage);
+                        }
+                    }
+                });
+
+                // MQTT on subscription ACK
+                client.on('suback', function (topic, message) {
+                    logger.info(`subscribed to [${topic}] ${message}`);
+                });
+
+                // MQTT on error
+                client.on('error', error => {
+                    // https://nodejs.org/api/errors.html#errors_class_error
+                    if (error.code) {
+                        logger.error('error code:' + error.code + ' message:' + error.message);
+                    } else {
+                        logger.error('error:' + error.message);
+                        if (onEndCallback) {
+                            onEndCallback(error);
+                        }
+                        reject(error);
+                    }
+                });
+
+                // MQTT on reconnect
+                client.on('reconnect', function () {
+                    logger.info('reconnect');
+                    reconnectRetry++;
+                    logger.info(`reconnect (retry ${reconnectRetry} / ${MAX_CONNECT_RETRIES})`);
+                });
+
+                // MQTT on message
+                client.on('message', (topic, message) => {
+                    logger.debug(`[${topic}]< ${message}`);
+                    loDevice.features.forEach(feature => {
+                        if (feature.getHandledTopics().indexOf(topic) > 0) {
+                            feature.onMessage(topic, message);
+                        }
+                    });
+                });
+                client.subscribeTopic = topic => {
+                    logger.info(`subscribe [${topic}]`);
+                    this.client.subscribe(topic, err => {
+                        if (err) {
+                            logger.warn(`FAILED to subscribe on [$\{topic}]> ${err}`); // check mqtt rate limit
+                        }
+                    });
+                };
+
+                client.publishTopic = (topic, object) => {
+                    const objectStr = JSON.stringify(object);
+                    logger.info(`[${topic}]> ${objectStr}`);
+                    this.client.publish(topic, objectStr);
+                };
+
+            } catch (exception) {
+                logger.error(exception);
+                reject(exception);
             }
-            loDevice.client = mqtt.connect(serverUrl, {
-                ...MQTT_DEVICE_MODE_DEFAULT_CONNECT_OPTIONS,
-                clientId,
-                password
-            });
-            // After connection actions
-            loDevice.client.on('connect', function () {
-                logger.info(`${serverUrl}: ${clientId} connected.`);
-                connectionCount++;
-                reconnectRetry = 0;
-                if (publishDeviceConfig) {
-                    loDevice.publishDeviceConfig();
-                }
-                /**
-                 if (!byPassInit) {
-                 publishDeviceConfig();
-
-                 subscribeTopic(topicConfigUpdate);
-
-                 publishDeviceData();
-
-                 if (process.env.LO_MQTT_SKIP_STARTUP_PUBLISH !== "true") {
-                 publishDeviceResources();
-                 }
-
-                 subscribeTopic(topicCommand);
-
-                 subscribeTopic(topicResourceUpd);
-                 }
-                 */
-                resolve();
-            });
-            loDevice.client.on('close', function () {
-                logger.info('connection closed');
-                if (reconnectRetry >= MAX_CONNECT_RETRIES) {
-                    const noMoreRetryMessage = `aborted after ${MAX_CONNECT_RETRIES} retries`;
-                    logger.warn(noMoreRetryMessage);
-                    loDevice.close();
-                    reject(noMoreRetryMessage);
-                    if (loDevice.onEndCallback) {
-                        loDevice.onEndCallback(noMoreRetryMessage);
-                    }
-                }
-            });
-
-            // Other callbacks
-            loDevice.client.on('suback', function (topic, message) {
-                logger.info('subscribed to ' + topic);
-            });
-
-            loDevice.client.on('error', error => {
-                // https://nodejs.org/api/errors.html#errors_class_error
-                if (error.code) {
-                    logger.error('error code:' + error.code + ' message:' + error.message);
-                } else {
-                    logger.error('error:' + error.message);
-                    if (onEndCallback) {
-                        onEndCallback(error);
-                    }
-                    reject(error);
-                }
-            });
-
-            this.client.on('reconnect', function () {
-                logger.info('reconnect');
-                reconnectRetry++;
-                logger.info(`reconnect (retry ${reconnectRetry} / ${MAX_CONNECT_RETRIES})`);
-            });
         });
     }
 
@@ -145,18 +185,11 @@ export default class LoDevice {
         });
     }
 
-    publishDeviceConfig() {
-        const {logger, client, deviceConfig} = this;
-        const msgConfigStr = JSON.stringify(deviceConfig);
-        logger.info(`[${topicConfig}]> ${msgConfigStr}`);
-        client.publish(topicConfig, msgConfigStr);
-    }
-
-
     close() {
         const {client, logger, deviceId: clientId, mqttServerUrl: serverUrl} = this;
         if (client) {
             client.end(true, {}, () => logger.info(`${serverUrl}: ${clientId} disconnected.`));
         }
     }
+
 }
