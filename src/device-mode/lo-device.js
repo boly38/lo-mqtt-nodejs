@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import LoDeviceController from "./service/LoDeviceController.js";
 import log4js from "log4js";
+import {loadJSON} from "./service/util.js";
 
 const logger = log4js.getLogger();
 logger.level = 'DEBUG';
@@ -10,13 +11,15 @@ const mqttServerUrl = process.argv[2];
 const deviceApiKey = process.argv[3];
 const deviceId = process.argv[4];
 
-const loDeviceController = new LoDeviceController()
-
-
 try {
-    const config = loDeviceController.buildDeviceConfigFromEnv({mqttServerUrl, deviceApiKey, deviceId});
+    const loDeviceController = new LoDeviceController()
+    let deviceConfig = loDeviceController.buildDeviceConfigFromEnv({mqttServerUrl, deviceApiKey, deviceId});
+    const config = loadJSON("../data/initialConfig.json");
+    const resource = loadJSON("../data/initialResource.json");
+    deviceConfig = {...deviceConfig, config, resource};
+
     loDeviceController.showHelp();
-    loDeviceController.startNewDevice(config)
+    loDeviceController.startNewDevice(deviceConfig)
         .then(() => {
             loDeviceController.initAskAction();
         }).catch(err => {
