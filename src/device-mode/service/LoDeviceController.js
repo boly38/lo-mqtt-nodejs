@@ -49,7 +49,7 @@ export default class LoDeviceController {
             })
         }
 
-        ask("mqttController> ")
+        ask("|> ")
     }
 
     stopAskInput() {

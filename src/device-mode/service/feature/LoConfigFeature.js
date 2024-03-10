@@ -9,10 +9,17 @@ export default class LoConfigFeature {
         this.logger.level = 'DEBUG';
         this.config = config;
         this.publishDeviceConfig = publishDeviceConfig;
+        this.configFailure = 0;
+        this.handledConfig = 0;
     }
 
     getName() {
         return "config";
+    }
+
+    getStats() {
+        const {handledConfig} = this;
+        return {handledConfig}
     }
 
     getHandledTopics() {
@@ -21,14 +28,33 @@ export default class LoConfigFeature {
 
     onConnect({client}) {
         const {config, publishDeviceConfig} = this;
-        client.publishConfig = object => client.publishTopic(topicConfig, object);
+        this.publishConfig = object => client.publishTopic(topicConfig, object);
         client.subscribeTopic(topicConfigUpdate);
         if (isTrue(publishDeviceConfig)) {
-            client.publishConfig(config);
+            this.publishConfig(config);
         }
     }
 
     onMessage(topic, message) {
-        this.logger.debug(`[${topic}]< ${message}`);
+        if (topicConfigUpdate === topic) {
+            this.onConfigUpdateMessage(message);
+        }
+    }
+
+    onConfigUpdateMessage(message) {
+        if (this.configFailure > 0) {
+            // hack a wrong value for a requested parameter
+            const msgWrongCfg = message;
+            const firstParam = Object.keys(message.cfg)[0];
+            msgWrongCfg.cfg[firstParam].v = 666;
+            this.logger.info(`FAILED config [${topicConfig}]> ${JSON.stringify(msgWrongCfg)}`);
+            this.publishConfig(msgWrongCfg);
+            this.configFailure--;
+        } else {
+            // success
+            this.config = message;
+            this.publishConfig(this.config);
+        }
+        this.handledConfig++;
     }
 }
