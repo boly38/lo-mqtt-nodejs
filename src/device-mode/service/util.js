@@ -1,10 +1,10 @@
 import InvalidConfigurationError from "../exception/InvalidConfigurationError.js";
 import * as fs from "fs";
-import path from 'path';
-import {fileURLToPath} from 'url';
+import Axios from "axios";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function isSet(variable) {
     return (variable !== undefined && variable !== null);
@@ -12,6 +12,10 @@ function isSet(variable) {
 
 function isTrue(variable) {
     return ["true", "TRUE", "1"].indexOf(variable) >= 0
+}
+
+function randomFromArray(arrayValue) {
+   return arrayValue[Math.floor(Math.random() * arrayValue.length)];
 }
 
 function assumeConfigurationKeySet(object, keyName, envDefaultValue = null, defaultValue = null) {
@@ -35,4 +39,30 @@ function loadJSON(path) {
     return JSON.parse(buffer);
 }
 
-export {isSet, isTrue, assumeConfigurationKeySet, loadJSON};
+async function downloadFile(url, outputLocationPath) {
+    return new Promise((resolve, reject) => {
+        const method = "get", responseType = "stream";
+        const writer = fs.createWriteStream(outputLocationPath);
+        Axios({method, url, responseType})
+            .then(response => {
+            //ensure that the user can call `then()` only when the file has
+            //been downloaded entirely.
+            response.data.pipe(writer);
+            let error = null;
+            writer.on('error', err => {
+                error = err;
+                writer.close();
+                reject(err);
+            });
+            writer.on('close', () => {
+                if (!error) {
+                    resolve(true);
+                }
+                //no need to call the reject here, as it will have been called in the
+                //'error' stream;
+            });
+        });
+    });
+}
+
+export {sleep, isSet, isTrue, randomFromArray, assumeConfigurationKeySet, loadJSON, downloadFile};

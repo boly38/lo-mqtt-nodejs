@@ -143,11 +143,13 @@ export default class LoDevice {
                 });
 
                 // MQTT on message
-                client.on('message', (topic, message) => {
-                    logger.debug(`[${topic}]< ${message}`);
+                client.on('message', (topic, messageString) => {
+                    const request = JSON.parse(messageString);
+                    logger.debug(`[${topic}]< ${JSON.stringify(request)}`);
                     loDevice.features.forEach(feature => {
-                        if (feature.getHandledTopics().indexOf(topic) > 0) {
-                            feature.onMessage(topic, message);
+                        let featureTopics = feature.getHandledTopics();
+                        if (featureTopics?.includes(topic)) {
+                            feature.onMessage(topic, request);
                         }
                     });
                 });
