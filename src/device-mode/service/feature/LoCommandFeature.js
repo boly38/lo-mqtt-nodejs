@@ -15,6 +15,13 @@ export default class LoCommandFeature {
         return "command";
     }
 
+    info() {
+        this.logger.info(`${this.getName()}` +
+            (this.handledCommand > 0 ? `| ${this.handledCommand} handled` : '') +
+            (this.commandNoAnswer > 0 ? `| with ${this.commandNoAnswer} 'no answer' planned` : '')
+        );
+    }
+
     getStats() {
         const {handledCommand} = this;
         return {handledCommand}
@@ -22,6 +29,14 @@ export default class LoCommandFeature {
 
     getHandledTopics() {
         return [topicCommand];
+    }
+
+    order(order) {
+        if ("add-no-answer" === order) {
+            this.commandNoAnswer++;
+            return;
+        }
+        this.logger.info(`unsupported order ${order}`);
     }
 
     onConnect({client}) {

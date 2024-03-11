@@ -17,6 +17,13 @@ export default class LoConfigFeature {
         return "config";
     }
 
+    info() {
+        this.logger.info(`${this.getName()}` +
+            (this.handledConfig > 0 ? `| ${this.handledConfig} handled ` : '') +
+            (this.configFailure > 0 ? `| with ${this.configFailure} failure planned` : '')
+        );
+    }
+
     getStats() {
         const {handledConfig} = this;
         return {handledConfig}
@@ -24,6 +31,17 @@ export default class LoConfigFeature {
 
     getHandledTopics() {
         return [topicConfigUpdate];
+    }
+
+    order(order) {
+        if ("add-failure" === order) {
+            this.configFailure++;
+            return;
+        } else if ("send" === order) {
+            this.publishConfig(this.config);
+            return;
+        }
+        this.logger.info(`unsupported order ${order}`);
     }
 
     onConnect({client}) {
@@ -46,7 +64,7 @@ export default class LoConfigFeature {
             // hack a wrong value for a requested parameter
             const msgWrongCfg = message;
             const firstParam = Object.keys(message.cfg)[0];
-            msgWrongCfg.cfg[firstParam].v = 666;
+            msgWrongCfg.cfg[firstParam].v = 666;// w/ initialConfig: a string is expected
             this.logger.info(`FAILED config [${topicConfig}]> ${JSON.stringify(msgWrongCfg)}`);
             this.publishConfig(msgWrongCfg);
             this.configFailure--;

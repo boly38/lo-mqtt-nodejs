@@ -24,7 +24,8 @@ export default class LoResourceFeature {
         this.publishDeviceResource = publishDeviceResource;
         this.resourceFailure = 0;
         this.withNoAnswer = false;
-        this.withDeviceError = process.env.LO_MQTT_DEFAULT_WITH_DEVICE_ERROR === 'true' | false;4
+        this.withDeviceError = process.env.LO_MQTT_DEFAULT_WITH_DEVICE_ERROR === 'true' | false;
+        4
         this.withDownloadStep = true;
         this.withDownloadExit = false;
         this.handledResource = 0;
@@ -32,6 +33,17 @@ export default class LoResourceFeature {
 
     getName() {
         return "resource";
+    }
+
+    info() {
+        this.logger.info(`${this.getName()}` +
+            (this.handledResource > 0 ? `| ${this.handledResource} handled` : '') +
+            (this.withDownloadStep ? `| with download step` : ' without download step') +
+            (this.withDownloadStep && this.withDownloadExit ? ' crash planned(enforce exit) !' : '') +
+            (this.resourceFailure > 0 ? ` with ${this.resourceFailure} failure planned` : '') +
+            (this.resourceFailure > 0 && this.withDeviceError ? '(custom error)' : '') +
+            (this.resourceFailure > 0 && this.withNoAnswer ? '(no answer)' : '')
+        );
     }
 
     getStats() {
@@ -42,6 +54,18 @@ export default class LoResourceFeature {
     getHandledTopics() {
         return [topicResourceUpd];
     }
+
+    order(order) {// @formatter:off
+        switch(order) {
+            case "add-failure":                this.resourceFailure++; break;
+            case "send":                       this.publishResource(this.resource); break;
+            case "toggle-custom-device-error": this.withDeviceError = !this.withDeviceError; break;
+            case "toggle-no-answer":           this.withNoAnswer = !this.withNoAnswer; break;
+            case "toggle-download-step":       this.withDownloadStep = !this.withDownloadStep; break;
+            case "toggle-download-crash":      this.withDownloadExit = !this.withDownloadExit; break;
+            default:this.logger.info(`unsupported order ${order}`);
+        }
+    }// @formatter:on
 
     onConnect({client}) {
         const {resource, publishDeviceResource} = this;
@@ -116,7 +140,11 @@ export default class LoResourceFeature {
                 resourceSize,
                 resourceMd5,
                 this.withDownloadExit
-            ).then(simulateUpdateDone);
+            ).then(r => {
+                if (!this.withDownloadExit) {
+                    simulateUpdateDone();
+                }
+            });
         } else {
             simulateUpdateDone();
         }
