@@ -175,6 +175,12 @@ export default class LoDevice {
         });
     }
 
+    info() {
+        const {logger, deviceId, mqttServerUrl, connectionCount} = this;
+        logger.info(`->${deviceId} @ ${mqttServerUrl} - session #${connectionCount}`);
+        this.features.forEach(feature => feature.info());
+    }
+
     forceReconnect() {
         return new Promise(resolve => {
             const loDevice = this;
@@ -194,4 +200,14 @@ export default class LoDevice {
         }
     }
 
+    sendPluginOrder(name, order) {
+        for (const feature of this.features) {
+            let featureName = feature.getName();
+            if (name === feature.getName() && feature.order) {
+                feature.order(order);
+                return;// found it so bye
+            }
+        }
+        this.logger.info(`no ${name} eligible to order ${order}`);
+    }
 }

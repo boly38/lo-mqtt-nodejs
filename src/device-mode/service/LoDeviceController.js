@@ -4,9 +4,23 @@ import log4js from "log4js";
 import * as readline from "readline";
 import {default as nodeGlobalProxy} from "node-global-proxy";
 
-const ORDER_HELP = ["help", "h", "?"];
+//~ orders: use alpha order
+const ORDER_HELP = ["h", "?", "help"];
+const ORDER_INFO = ["i", "x", "info"]; // +x
+const ORDER_QUIT = ["q", "quit", "bye"];
 const ORDER_RECONNECT = ["*", "reconnect"];
-const ORDER_QUIT = ["bye", "quit", "q"];
+//~ plugins orders: use alpha order
+const ORDER_ADD_COMMAND_NO_ANSWER = ["k", "cmdNoAnswer"];
+const ORDER_ADD_CONFIG_UPDATE_FAILURE = ["c", "cfgFail"];
+const ORDER_ADD_RESOURCE_UPDATE_FAILURE = ["r", "rscFail"];
+const ORDER_SEND_CONFIG = ["g", "cfgSend"];
+const ORDER_SEND_MESSAGE = ["m", "dataSend"];
+const ORDER_SEND_RESOURCE = ["o", "rscSend"];
+const ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_CUSTOM_DEVICE_ERROR = ["d", "rscFailDevice"];
+const ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_NO_ANSWER = ["n", "rscFailNoAnswer"];
+const ORDER_TOGGLE_RESOURCE_UPDATE_DOWNLOAD_STEP = ["f", "rscDownload"];
+const ORDER_TOGGLE_RESOURCE_UPDATE_CRASH_DOWNLOAD = ["z", "rscCrashDownload"];
+
 export default class LoDeviceController {
     constructor() {
         this.logger = log4js.getLogger();
@@ -34,14 +48,38 @@ export default class LoDeviceController {
             this.readInterface.question(question, (answer) => {
                 // logger.debug(`The answer received:  ${answer}\n`)
                 let quit = false;
-                if (ORDER_HELP.indexOf(answer) >= 0) {
+//~ orders
+                if (ORDER_HELP.includes(answer)) {
                     controller.showHelp();
-                } else if (ORDER_RECONNECT.indexOf(answer) >= 0) {
-                    controller.reconnectFirst();
-                } else if (ORDER_QUIT.indexOf(answer) >= 0) {
+                } else if (ORDER_INFO.includes(answer)) {
+                    controller.firstInfo();
+                } else if (ORDER_QUIT.includes(answer)) {
                     this.stopAskInput();
                     quit = true;
                     controller.quit();
+                } else if (ORDER_RECONNECT.includes(answer)) {
+                    controller.firstReconnect();
+//~ plugins orders
+                } else if (ORDER_ADD_COMMAND_NO_ANSWER.includes(answer)) {
+                    controller.firstSendPluginOrder("command", "add-no-answer");
+                } else if (ORDER_ADD_CONFIG_UPDATE_FAILURE.includes(answer)) {
+                    controller.firstSendPluginOrder("config", "add-failure");
+                } else if (ORDER_ADD_RESOURCE_UPDATE_FAILURE.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "add-failure");
+                } else if (ORDER_SEND_CONFIG.includes(answer)) {
+                    controller.firstSendPluginOrder("config", "send");
+                } else if (ORDER_SEND_MESSAGE.includes(answer)) {
+                    controller.firstSendPluginOrder("data", "send");
+                } else if (ORDER_SEND_RESOURCE.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "send");
+                } else if (ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_CUSTOM_DEVICE_ERROR.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "toggle-custom-device-error");
+                } else if (ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_NO_ANSWER.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "toggle-no-answer");
+                } else if (ORDER_TOGGLE_RESOURCE_UPDATE_DOWNLOAD_STEP.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "toggle-download-step");
+                } else if (ORDER_TOGGLE_RESOURCE_UPDATE_CRASH_DOWNLOAD.includes(answer)) {
+                    controller.firstSendPluginOrder("resource", "toggle-download-crash");
                 }
                 if (!quit && reAsk) {
                     ask(question);// warn : recursive call
@@ -51,6 +89,7 @@ export default class LoDeviceController {
 
         ask("|> ")
     }
+
 
     stopAskInput() {
         if (this.readInterface) {
@@ -83,8 +122,19 @@ export default class LoDeviceController {
     showHelp() {
         console.log("| => ~~ help menu ~~ <=");
         this.showHelpLine(ORDER_HELP, "display help menu");
-        this.showHelpLine(ORDER_RECONNECT, "force disconnect / reconnect");
+        this.showHelpLine(ORDER_INFO, "display device info");
         this.showHelpLine(ORDER_QUIT, "disconnect and quit");
+        this.showHelpLine(ORDER_RECONNECT, "force disconnect / reconnect");
+        this.showHelpLine(ORDER_ADD_COMMAND_NO_ANSWER, "command> add no answer");
+        this.showHelpLine(ORDER_ADD_CONFIG_UPDATE_FAILURE, "config> add update failure");
+        this.showHelpLine(ORDER_ADD_RESOURCE_UPDATE_FAILURE, "resource> add update failure");
+        this.showHelpLine(ORDER_SEND_CONFIG, "config> send");
+        this.showHelpLine(ORDER_SEND_MESSAGE, "data> send");
+        this.showHelpLine(ORDER_SEND_RESOURCE, "resource> send");
+        this.showHelpLine(ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_CUSTOM_DEVICE_ERROR, "resource> toggle custom device error");
+        this.showHelpLine(ORDER_TOGGLE_RESOURCE_UPDATE_FAILURE_NO_ANSWER, "resource> toggle no answer");
+        this.showHelpLine(ORDER_TOGGLE_RESOURCE_UPDATE_DOWNLOAD_STEP, "resource> toggle download step");
+        this.showHelpLine(ORDER_TOGGLE_RESOURCE_UPDATE_CRASH_DOWNLOAD, "resource> toggle download step crash");
     }
 
     showHelpLine(order, desc) {
@@ -95,14 +145,27 @@ export default class LoDeviceController {
         this.devices.forEach(d => d.close());
     }
 
-    reconnectFirst() {
+    firstInfo() {
+        this.applyToFirstDevice(d => d.info());
+    }
+
+    firstReconnect() {
+        this.applyToFirstDevice(d => d.forceReconnect().then(r => {
+        }));
+    }
+
+    firstSendPluginOrder(name, order) {
+        this.applyToFirstDevice(d => d.sendPluginOrder(name, order));
+    }
+
+    applyToFirstDevice(callable) {
         if (this.devices.length < 1) {
-            this.logger.info("no device to reconnect");
+            this.logger.debug("no device to apply");
             return;
         }
-        this.devices[0].forceReconnect().then(r => {
-        })
+        callable(this.devices[0]);
     }
+
     validMqttUrl(url) {
         return /^(mqtts?):\/\/(.*):[0-9]{2,6}$/.test(url) || /^(wss?):\/\/(.*):[0-9]{2,6}(\/mqtt)?$/.test(url);
     }

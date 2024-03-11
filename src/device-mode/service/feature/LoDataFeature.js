@@ -10,7 +10,19 @@ export default class LoDataFeature {
         this.publishDeviceData = publishDeviceData;
         this.getDeviceStats = getDeviceStats;
     }
-
+    getName() {
+        return "data";
+    }
+    info() {
+        // nothing to say
+    }
+    order(order) {
+        if ("send" === order) {
+            this.publishData();
+            return;
+        }
+        this.logger.info(`unsupported order ${order}`);
+    }
     onConnect({client}) {
         const {publishDeviceData, deviceId, getDeviceStats} = this;
         this.deviceId = deviceId;
