@@ -1,14 +1,25 @@
 {
   "name": "lo-mqtt-nodejs",
+  "author": "Brice Vandeputte <brice.vandeputte@orange.com>",
+  "license": "MIT",
   "version": "1.0.0",
-  "description": "",
+  "description": "Live Objects NodeJS MQTT client",
   "type": "module",
   "main": "src/device-mode/lo-device.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boly38/lo-mqtt-nodejs.git"
+  },
+  "homepage": "https://github.com/boly38/lo-mqtt-nodejs",
+  "keywords": [
+    "mqtt",
+    "test",
+    "liveobjects",
+    "config","command","resource","geolocation"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "axios": "^1.6.7",
     "dotenv": "^16.4.5",
