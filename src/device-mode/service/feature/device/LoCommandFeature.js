@@ -5,7 +5,7 @@ const topicCommandRsp = 'dev/cmd/res';
 const nodeResponse = 'this is an answer from nodeJs client LoCommandFeature';
 export default class LoCommandFeature {
     constructor({}) {
-        this.logger = log4js.getLogger();
+        this.logger = log4js.getLogger("LoCommandFeature");
         this.logger.level = 'DEBUG';
         this.handledCommand = 0;
         this.commandNoAnswer = 0;
@@ -36,7 +36,7 @@ export default class LoCommandFeature {
             this.commandNoAnswer++;
             return;
         }
-        this.logger.info(`unsupported order ${order}`);
+        this.logger.info(`${this.getName()}|unsupported order ${order}`);
     }
 
     onConnect({client}) {

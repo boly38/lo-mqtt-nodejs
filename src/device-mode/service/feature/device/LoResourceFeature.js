@@ -1,5 +1,5 @@
 import log4js from "log4js";
-import {downloadFile, isTrue, randomFromArray} from "../util.js";
+import {downloadFile, isTrue, randomFromArray} from "../../util.js";
 
 const topicResource = 'dev/rsc';
 
@@ -18,7 +18,7 @@ const possibleErrors = [
 ];
 export default class LoResourceFeature {
     constructor({resource, publishDeviceResource}) {
-        this.logger = log4js.getLogger();
+        this.logger = log4js.getLogger("LoResourceFeature");
         this.logger.level = 'DEBUG';
         this.resource = resource;
         this.publishDeviceResource = publishDeviceResource;
@@ -63,7 +63,7 @@ export default class LoResourceFeature {
             case "toggle-no-answer":           this.withNoAnswer = !this.withNoAnswer; break;
             case "toggle-download-step":       this.withDownloadStep = !this.withDownloadStep; break;
             case "toggle-download-crash":      this.withDownloadExit = !this.withDownloadExit; break;
-            default:this.logger.info(`unsupported order ${order}`);
+            default:this.logger.info(`${this.getName()}|unsupported order ${order}`);
         }
     }// @formatter:on
 

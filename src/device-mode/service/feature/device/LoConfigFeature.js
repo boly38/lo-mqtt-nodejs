@@ -1,11 +1,11 @@
 import log4js from "log4js";
-import {isTrue} from "../util.js";
+import {isTrue} from "../../util.js";
 
 const topicConfigUpdate = 'dev/cfg/upd';
 const topicConfig = 'dev/cfg';
 export default class LoConfigFeature {
     constructor({config, publishDeviceConfig}) {
-        this.logger = log4js.getLogger();
+        this.logger = log4js.getLogger("LoConfigFeature");
         this.logger.level = 'DEBUG';
         this.config = config;
         this.publishDeviceConfig = publishDeviceConfig;
@@ -41,7 +41,7 @@ export default class LoConfigFeature {
             this.publishConfig(this.config);
             return;
         }
-        this.logger.info(`unsupported order ${order}`);
+        this.logger.info(`${this.getName()}|unsupported order ${order}`);
     }
 
     onConnect({client}) {
