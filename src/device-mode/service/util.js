@@ -65,4 +65,8 @@ async function downloadFile(url, outputLocationPath) {
     });
 }
 
-export {sleep, isSet, isTrue, randomFromArray, assumeConfigurationKeySet, loadJSON, downloadFile};
+function randomLongId() {
+    return Math.ceil(Math.random() * 100000000000);
+}
+
+export {sleep, isSet, isTrue, randomFromArray, assumeConfigurationKeySet, loadJSON, downloadFile, randomLongId};

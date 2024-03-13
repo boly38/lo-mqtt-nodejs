@@ -1,9 +1,9 @@
 import log4js from "log4js";
 import mqtt from "mqtt";
-import LoConfigFeature from "./feature/LoConfigFeature.js";
-import LoCommandFeature from "./feature/LoCommandFeature.js";
-import LoResourceFeature from "./feature/LoResourceFeature.js";
-import LoDataFeature from "./feature/LoDataFeature.js";
+import LoConfigFeature from "./feature/device/LoConfigFeature.js";
+import LoCommandFeature from "./feature/device/LoCommandFeature.js";
+import LoResourceFeature from "./feature/device/LoResourceFeature.js";
+import LoDataFeature from "./feature/device/LoDataFeature.js";
 import {isSet} from "./util.js";
 
 // reconnectPeriod<=0 means no reconnection
@@ -20,8 +20,10 @@ const MQTT_DEVICE_MODE_DEFAULT_CONNECT_OPTIONS = {
     // keepAlive: 30 // seems no more supported?
     reconnectPeriod: MQTT_RECONNECT_PERIOD_MS
 };
+const deviceNamespace = 'NodeJS';
+const generateDeviceUrn = deviceId => `urn:lo:nsid:${deviceNamespace}:${deviceId}`;
 
-export default class LoDevice {
+class LoDevice {
 
     /**
      *
@@ -39,12 +41,13 @@ export default class LoDevice {
                     config, resource,
                     publishDeviceConfig, publishDeviceData, publishDeviceResource
                 }) {
-        this.logger = log4js.getLogger();
+        this.logger = log4js.getLogger("LoDevice");
         this.logger.level = 'DEBUG';
 
         this.mqttServerUrl = mqttServerUrl;
         this.deviceApiKey = deviceApiKey;
-        this.deviceId = deviceId;
+        this.setDeviceId(deviceId);
+        this.geoloc = [45.4535, 4.5032];
 
         this.client = null;
         this.connectionCount = 0;
@@ -53,8 +56,29 @@ export default class LoDevice {
             new LoConfigFeature({config, publishDeviceConfig}),
             new LoCommandFeature({}),
             new LoResourceFeature({resource, publishDeviceResource}),
-            new LoDataFeature({publishDeviceData, deviceId, "getDeviceStats": () => this.getDeviceStats()})
+            new LoDataFeature({
+                publishDeviceData, deviceId,
+                "getDeviceStats": () => this.getDeviceStats(),
+                "getGeoloc": () => this.getGeoloc()
+            })
         ];
+    }
+
+    getDeviceId() {
+        return this.deviceId;
+    }
+
+    setDeviceId(deviceId) {
+        this.deviceId = deviceId;
+        this.deviceUrn = generateDeviceUrn(deviceId);
+    }
+
+    getGeoloc() {
+        return this.geoloc;
+    }
+
+    setGeoloc(coordinate) {
+        this.geoloc = coordinate;
     }
 
     getDeviceStats() {
@@ -63,8 +87,7 @@ export default class LoDevice {
         this.features.forEach(feature => {
             if (isSet(feature.getStats) && isSet(feature.getName)) {
                 const name = feature.getName();
-                const featureStats = feature.getStats();
-                stats[name] = featureStats;
+                stats[name] = feature.getStats();
             }
         });
         return stats;
@@ -79,24 +102,24 @@ export default class LoDevice {
         const loDevice = this;
         let {
             logger, client, connectionCount, reconnectRetry,
-            deviceId: clientId, deviceApiKey: password, mqttServerUrl: serverUrl,
+            deviceUrn, deviceApiKey: password, mqttServerUrl: serverUrl,
         } = loDevice;
         loDevice.onEndCallback = onEndCallback;
         return new Promise((resolve, reject) => {
             try {
 
-                logger.info(`${serverUrl}: ${clientId} trying to connect...`);
+                logger.info(`${serverUrl}: ${deviceUrn} trying to connect...`);
                 if (client != null) {
                     loDevice.close()
                 }
                 client = mqtt.connect(serverUrl, {
                     ...MQTT_DEVICE_MODE_DEFAULT_CONNECT_OPTIONS,
-                    clientId, password
+                    "clientId": deviceUrn, password
                 });
                 loDevice.client = client
                 // After connection actions
                 client.on('connect', function () {
-                    logger.info(`${serverUrl}: ${clientId} connected.`);
+                    logger.info(`${serverUrl}: ${deviceUrn} connected.`);
                     connectionCount++;
                     loDevice.features.forEach(feature => feature.onConnect({client}));
                     resolve();
@@ -211,3 +234,5 @@ export default class LoDevice {
         this.logger.info(`no ${name} eligible to order ${order}`);
     }
 }
+
+export {LoDevice as default, deviceNamespace, generateDeviceUrn};

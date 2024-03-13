@@ -3,7 +3,7 @@ import LoDeviceController from "./service/LoDeviceController.js";
 import log4js from "log4js";
 import {loadJSON} from "./service/util.js";
 
-const logger = log4js.getLogger();
+const logger = log4js.getLogger("lo-device");
 logger.level = 'DEBUG';
 
 dotenv.config()

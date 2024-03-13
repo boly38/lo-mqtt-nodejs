@@ -3,12 +3,20 @@ import {assumeConfigurationKeySet} from "./util.js";
 import log4js from "log4js";
 import * as readline from "readline";
 import {default as nodeGlobalProxy} from "node-global-proxy";
+import LoGeolocationCFeature from "./feature/controller/LoGeolocationCFeature.js";
 
 //~ orders: use alpha order
 const ORDER_HELP = ["h", "?", "help"];
 const ORDER_INFO = ["i", "x", "info"]; // +x
 const ORDER_QUIT = ["q", "quit", "bye"];
 const ORDER_RECONNECT = ["*", "reconnect"];
+//~ controller plugins orders
+const ORDER_GENERATE_DEVICES_AND_LOCATION = [
+    "europe", "europe100", "europe1000",
+    "france", "france10", "france100",
+    "idf", "idf10", "idf100",
+    "lyon", "lyon10", "lyon100"
+];
 //~ plugins orders: use alpha order
 const ORDER_ADD_COMMAND_NO_ANSWER = ["k", "cmdNoAnswer"];
 const ORDER_ADD_CONFIG_UPDATE_FAILURE = ["c", "cfgFail"];
@@ -23,10 +31,13 @@ const ORDER_TOGGLE_RESOURCE_UPDATE_CRASH_DOWNLOAD = ["z", "rscCrashDownload"];
 
 export default class LoDeviceController {
     constructor() {
-        this.logger = log4js.getLogger();
+        this.logger = log4js.getLogger("LoDeviceController");
         this.logger.level = 'DEBUG';
         this.devices = [];
         this.initProxy();
+        this.cfeatures = [
+            new LoGeolocationCFeature({"controller": this})
+        ];
     }
 
     initProxy() {
@@ -80,6 +91,8 @@ export default class LoDeviceController {
                     controller.firstSendPluginOrder("resource", "toggle-download-step");
                 } else if (ORDER_TOGGLE_RESOURCE_UPDATE_CRASH_DOWNLOAD.includes(answer)) {
                     controller.firstSendPluginOrder("resource", "toggle-download-crash");
+                } else if (ORDER_GENERATE_DEVICES_AND_LOCATION.includes(answer)) {
+                    controller.sendCPluginOrder("geolocation", answer);
                 }
                 if (!quit && reAsk) {
                     ask(question);// warn : recursive call
@@ -111,6 +124,7 @@ export default class LoDeviceController {
 
     startNewDevice(config) {
         const device = new LoDevice(config);
+        this.lastDeviceId = device.getDeviceId();
         this.devices.push(device);
         return device.connect({
             "onEndCallback": () => {
@@ -145,17 +159,22 @@ export default class LoDeviceController {
         this.devices.forEach(d => d.close());
     }
 
-    firstInfo() {
-        this.applyToFirstDevice(d => d.info());
+    validMqttUrl(url) {
+        return /^(mqtts?):\/\/(.*):[0-9]{2,6}$/.test(url) || /^(wss?):\/\/(.*):[0-9]{2,6}(\/mqtt)?$/.test(url);
     }
 
-    firstReconnect() {
-        this.applyToFirstDevice(d => d.forceReconnect().then(r => {
-        }));
+    sendCPluginOrder(name, order) {
+        for (const feature of this.cfeatures) {
+            if (name === feature.getName() && feature.order) {
+                feature.order(order);
+                return;// found it so bye
+            }
+        }
+        this.logger.info(`no ${name} eligible to order ${order}`);
     }
 
-    firstSendPluginOrder(name, order) {
-        this.applyToFirstDevice(d => d.sendPluginOrder(name, order));
+    getLastDeviceId() {
+        return this.lastDeviceId;
     }
 
     applyToFirstDevice(callable) {
@@ -166,8 +185,24 @@ export default class LoDeviceController {
         callable(this.devices[0]);
     }
 
-    validMqttUrl(url) {
-        return /^(mqtts?):\/\/(.*):[0-9]{2,6}$/.test(url) || /^(wss?):\/\/(.*):[0-9]{2,6}(\/mqtt)?$/.test(url);
+    firstInfo() {
+        this.applyToFirstDevice(d => d.info());
     }
 
+    firstReconnect() {
+        this.applyToFirstDevice(d => d.forceReconnect().then(() => {
+        }));
+    }
+
+    firstSendPluginOrder(name, order) {
+        this.applyToFirstDevice(d => d.sendPluginOrder(name, order));
+    }
+
+    firstSetDeviceId(deviceId) {
+        this.applyToFirstDevice(d => d.setDeviceId(deviceId));
+    }
+
+    firstSetGeoloc(coordinates) {
+        this.applyToFirstDevice(d => d.setGeoloc(coordinates));
+    }
 }

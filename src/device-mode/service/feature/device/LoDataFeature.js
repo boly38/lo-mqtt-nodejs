@@ -1,27 +1,35 @@
 import log4js from "log4js";
-import {isTrue} from "../util.js";
+import {isTrue} from "../../util.js";
 
 const topicData = 'dev/data';
 
 export default class LoDataFeature {
-    constructor({publishDeviceData, getDeviceStats}) {
-        this.logger = log4js.getLogger();
+    constructor({publishDeviceData, getDeviceStats, getGeoloc}) {
+        this.logger = log4js.getLogger("LoDataFeature");
         this.logger.level = 'DEBUG';
         this.publishDeviceData = publishDeviceData;
         this.getDeviceStats = getDeviceStats;
+        this.getGeoloc = getGeoloc;
+        this.sendMessages = 0;
     }
     getName() {
         return "data";
     }
     info() {
-        // nothing to say
+        this.logger.info(`${this.getName()}` +
+            (this.sendMessages > 0 ? `| ${this.sendMessages} sendMessages ` : '')
+        );
+    }
+    getStats() {
+        const {sendMessages} = this;
+        return {sendMessages}
     }
     order(order) {
         if ("send" === order) {
             this.publishData();
             return;
         }
-        this.logger.info(`unsupported order ${order}`);
+        this.logger.info(`${this.getName()}|unsupported order ${order}`);
     }
     onConnect({client}) {
         const {publishDeviceData, deviceId, getDeviceStats} = this;
@@ -41,13 +49,14 @@ export default class LoDataFeature {
 
     publishData() {
         this.client.publishData(this.getDeviceDataMessage());
+        this.sendMessages++;
     }
 
     getDeviceDataMessage() {
         const {deviceId} = this.client;
         const messageModel = 'nodeDeviceModeV1';
         const now = new Date().toISOString();
-        const geoloc = [45.4535, 4.5032];
+        const geoloc = this.getGeoloc();
         let value = {
             temp: 12.75,
             humidity: 62.1,
