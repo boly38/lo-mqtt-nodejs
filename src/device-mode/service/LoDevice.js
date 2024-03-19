@@ -211,7 +211,11 @@ class LoDevice {
             const force = true;
             logger.info('forceReconnect');
             client.end(force, () => {
-                loDevice.connect({"onEndCallback": loDevice.onEndCallback}).then(resolve);
+                loDevice.connect({"onEndCallback": loDevice.onEndCallback})
+                    .then(resolve)
+                    .catch(err => {
+                        logger.error('forceReconnect unable to connect device', err);
+                    });
             });
         });
     }
