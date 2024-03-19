@@ -39,6 +39,7 @@ jobs:
         uses: oke-py/npm-audit-action@v2
         with:
           audit_level: moderate
+          # need repository /settings/actions > workflow permissions > R+W permission
           github_token: ${{ secrets.GITHUB_TOKEN }}
           issue_labels: cybersecurity,bot-created
           dedupe_issues: true
