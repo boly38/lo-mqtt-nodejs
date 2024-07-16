@@ -11,6 +11,9 @@
     },
     "X113DevFirmware": {
       "v": "v1"
+    },
+    "X113DevFirmwareHTTP": {
+      "v": "v1"
     }
   }
 }
