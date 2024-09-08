@@ -38,10 +38,8 @@ jobs:
           frontend/package-lock.json
 
     - name: Install dependencies
-      # npx force-resolutions : in case of Permission denied: run it locally to fix package-lock.json
       run: |
         echo "install"
-        npm run preinstall
         npm install
         echo "show outdated (if any)"
         npm outdated --depth=3 || echo "you must think about update your dependencies :)"
