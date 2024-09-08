@@ -2,7 +2,7 @@
   "name": "lo-mqtt-nodejs",
   "author": "Brice Vandeputte <brice.vandeputte@orange.com>",
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Live Objects NodeJS MQTT client",
   "type": "module",
   "main": "src/device-mode/lo-device.js",
