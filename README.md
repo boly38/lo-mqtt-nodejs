@@ -1,3 +1,8 @@
+# Archived
+
+- !! this repository was a temp fork of https://github.com/DatavenueLiveObjects/Start-here-nodeJS
+- !! Archived
+
 # lo-mqtt-nodejs - Live Objects MQTT Client
 [![scheduled npm audit](https://github.com/boly38/lo-mqtt-nodejs/actions/workflows/audit.yml/badge.svg)](https://github.com/boly38/lo-mqtt-nodejs/actions/workflows/audit.yml)
 
@@ -53,5 +58,6 @@ To start the client:
 ```bash
  node ./src/device-mode/lo-device.js
  ```
+
 
 Then use `h` to display help.
